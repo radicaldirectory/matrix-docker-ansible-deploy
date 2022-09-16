@@ -34,3 +34,15 @@ matrix_ssl_lets_encrypt_support_email: 'radicaldirectory@protonmail.com'
 # The playbook creates additional Postgres users and databases (one for each enabled service)
 # using this superuser account.
 matrix_postgres_connection_password: '{{ vault_matrix_postgres_connection_password }}'
+
+# cinny
+matrix_client_cinny_enabled: true
+
+# synapse-admin
+matrix_synapse_admin_enabled: true
+
+# matrix-registration
+matrix_registration_enabled: true
+
+# Generate a strong secret using: `pwgen -s 64 1`.
+matrix_registration_admin_secret: '{{ vault_matrix_registration_admin_secret }}'
