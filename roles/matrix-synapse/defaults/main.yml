@@ -9,7 +9,7 @@ matrix_synapse_container_image_self_build_repo: "https://github.com/matrix-org/s
 
 matrix_synapse_docker_image: "{{ matrix_synapse_docker_image_name_prefix }}matrixdotorg/synapse:{{ matrix_synapse_docker_image_tag }}"
 matrix_synapse_docker_image_name_prefix: "{{ 'localhost/' if matrix_synapse_container_image_self_build else matrix_container_global_registry_prefix }}"
-matrix_synapse_version: v1.67.0
+matrix_synapse_version: v1.68.0
 matrix_synapse_docker_image_tag: "{{ matrix_synapse_version }}"
 matrix_synapse_docker_image_force_pull: "{{ matrix_synapse_docker_image.endswith(':latest') }}"
 
@@ -364,6 +364,11 @@ matrix_url_preview_accept_language: ['en-US', 'en']
 # See https://github.com/matrix-org/synapse/blob/master/docs/metrics-howto.md
 matrix_synapse_metrics_enabled: false
 matrix_synapse_metrics_port: 9100
+
+# matrix_synapse_grafana_dashboard_urls contains a list of URLs with Grafana dashboard definitions.
+# If the Grafana role is enabled, these dashboards will be downloaded.
+matrix_synapse_grafana_dashboard_urls:
+  - https://raw.githubusercontent.com/matrix-org/synapse/master/contrib/grafana/synapse.json
 
 # Controls whether Synapse metrics should be proxied (exposed) on:
 # - `matrix.DOMAIN/metrics/synapse/main-process` for the main process
