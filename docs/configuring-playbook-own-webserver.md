@@ -27,11 +27,23 @@ No matter which external webserver you decide to go with, you'll need to:
 
 1) Make sure your web server user (something like `http`, `apache`, `www-data`, `nginx`) is part of the `matrix` group. You should run something like this: `usermod -a -G matrix nginx`. This allows your webserver user to access files owned by the `matrix` group. When using an external nginx webserver, this allows it to read configuration files from `/matrix/nginx-proxy/conf.d`. When using another server, it would make other files, such as `/matrix/static-files/.well-known`, accessible to it.
 
-2) Edit your configuration file (`inventory/host_vars/matrix.<your-domain>/vars.yml`) to disable the integrated nginx server:
+2) Edit your configuration file (`inventory/host_vars/matrix.<your-domain>/vars.yml`)
+   - to disable the integrated nginx server:
 
-```yaml
-matrix_nginx_proxy_enabled: false
-```
+        ```yaml
+        matrix_nginx_proxy_enabled: false
+        ```
+    - if using an external server on another host, add the `<service>_http_host_bind_port` or `<service>_http_bind_port` variables for the services that will be exposed by the external server on the other host. The actual name of the variable is listed in the `roles/<service>/defaults/vars.yml` file for each service. Most variables follow the `<service>_http_host_bind_port` format.
+
+      These variables will make Docker expose the ports on all network interfaces instead of localhost only.
+      [Keep in mind that there are some security concerns if you simply proxy everything.](https://github.com/matrix-org/synapse/blob/master/docs/reverse_proxy.md#synapse-administration-endpoints)
+
+      Here are the variables required for the default configuration (Synapse and Element)
+       ```
+		matrix_synapse_reverse_proxy_companion_container_client_api_host_bind_port: '0.0.0.0:8008'
+		matrix_synapse_reverse_proxy_companion_container_federation_api_host_bind_port: '0.0.0.0:8048'
+        matrix_client_element_container_http_host_bind_port: "0.0.0.0:8765"
+       ```
 
 3) **If you'll manage SSL certificates by yourself**, edit your configuration file (`inventory/host_vars/matrix.<your-domain>/vars.yml`) to disable SSL certificate retrieval:
 
@@ -40,7 +52,6 @@ matrix_ssl_retrieval_method: none
 ```
 
 **Note**: During [installation](installing.md), unless you've disabled SSL certificate management (`matrix_ssl_retrieval_method: none`), the playbook would need 80 to be available, in order to retrieve SSL certificates. **Please manually stop your other webserver while installing**. You can start it back up afterwards.
-
 
 ### Using your own external nginx webserver
 
@@ -60,15 +71,6 @@ matrix_nginx_proxy_ssl_protocols: "TLSv1.2"
 
 If you are experiencing issues, try updating to a newer version of Nginx. As a data point in May 2021 a user reported that Nginx 1.14.2 was not working for them. They were getting errors about socket leaks. Updating to Nginx 1.19 fixed their issue.
 
-If you are not going to be running your webserver on the same docker network, or the same machine as matrix, these variables can be set to bind synapse to an exposed port. [Keep in mind that there are some security concerns if you simply proxy everything to it](https://github.com/matrix-org/synapse/blob/master/docs/reverse_proxy.md#synapse-administration-endpoints)
-```yaml
-# Takes an "<ip>:<port>" or "<port>" value (e.g. "127.0.0.1:8048" or "192.168.1.3:80"), or empty string to not expose.
-matrix_synapse_container_client_api_host_bind_port: ''
-matrix_synapse_container_federation_api_plain_host_bind_port: ''
-```
-
-
-
 ### Using your own external Apache webserver
 
 Once you've followed the [Preparation](#preparation) guide above, you can take a look at the [examples/apache](../examples/apache) directory for a sample configuration.
@@ -82,7 +84,7 @@ After following  the [Preparation](#preparation) guide above, you can take a loo
 
 ### Using another external webserver
 
-Feel free to look at the [examples/apache](../examples/apache) directory, or the [template files in the matrix-nginx-proxy role](../roles/matrix-nginx-proxy/templates/nginx/conf.d/).
+Feel free to look at the [examples/apache](../examples/apache) directory, or the [template files in the matrix-nginx-proxy role](../roles/custom/matrix-nginx-proxy/templates/nginx/conf.d/).
 
 
 ## Method 2: Fronting the integrated nginx reverse-proxy webserver with another reverse-proxy
@@ -170,31 +172,26 @@ matrix_nginx_proxy_container_extra_arguments:
 
   # The Nginx proxy container will receive traffic from these subdomains
   - '--label "traefik.http.routers.matrix-nginx-proxy.rule=Host(`{{ matrix_server_fqn_matrix }}`,`{{ matrix_server_fqn_element }}`,`{{ matrix_server_fqn_dimension }}`,`{{ matrix_server_fqn_jitsi }}`)"'
-
   # (The 'web-secure' entrypoint must bind to port 443 in Traefik config)
   - '--label "traefik.http.routers.matrix-nginx-proxy.entrypoints=web-secure"'
-
   # (The 'default' certificate resolver must be defined in Traefik config)
   - '--label "traefik.http.routers.matrix-nginx-proxy.tls.certResolver=default"'
-
+  # Traefik requires that we declare which service this router is using
+  - '--label "traefik.http.routers.matrix-nginx-proxy.service=matrix-nginx-proxy"'
   # The Nginx proxy container uses port 8080 internally
   - '--label "traefik.http.services.matrix-nginx-proxy.loadbalancer.server.port=8080"'
 
-matrix_synapse_container_extra_arguments:
-  # May be unnecessary depending on Traefik config, but can't hurt
-  - '--label "traefik.enable=true"'
-
-  # The Synapse container will receive traffic from this subdomain
-  - '--label "traefik.http.routers.matrix-synapse.rule=Host(`{{ matrix_server_fqn_matrix }}`)"'
-
-  # (The 'synapse' entrypoint must bind to port 8448 in Traefik config)
-  - '--label "traefik.http.routers.matrix-synapse.entrypoints=synapse"'
-
+  # Federation
+  - '--label "traefik.http.routers.matrix-nginx-proxy-federation.rule=Host(`{{ matrix_server_fqn_matrix }}`)"'
+  # (The 'federation' entrypoint must bind to port 8448 in Traefik config)
+  - '--label "traefik.http.routers.matrix-nginx-proxy-federation.entrypoints=federation"'
   # (The 'default' certificate resolver must be defined in Traefik config)
-  - '--label "traefik.http.routers.matrix-synapse.tls.certResolver=default"'
-
-  # The Synapse container uses port 8048 internally
-  - '--label "traefik.http.services.matrix-synapse.loadbalancer.server.port=8048"'
+  - '--label "traefik.http.routers.matrix-nginx-proxy-federation.tls.certResolver=default"'
+  # Traefik requires that we declare which service this router is using
+  - '--label "traefik.http.routers.matrix-nginx-proxy-federation.service=matrix-nginx-proxy-federation"'
+  # The Nginx proxy container uses port `matrix_nginx_proxy_proxy_matrix_federation_port (8448) internally
+  - '--label "traefik.http.services.matrix-nginx-proxy-federation.loadbalancer.server.port={{ matrix_nginx_proxy_proxy_matrix_federation_port }}"'
+  - '--label "traefik.http.services.matrix-nginx-proxy-federation.loadbalancer.server.scheme={{ "https" if matrix_nginx_proxy_https_enabled else "http" }}"'
 ```
 
 This method uses labels attached to the Nginx and Synapse containers to provide the Traefik Docker provider with the information it needs to proxy `matrix.DOMAIN`, `element.DOMAIN`, `dimension.DOMAIN` and `jitsi.DOMAIN`. Some [static configuration](https://docs.traefik.io/v2.0/reference/static-configuration/file/) is required in Traefik; namely, having endpoints on ports 443 and 8448 and having a certificate resolver.
@@ -238,7 +235,7 @@ services:
       - "--providers.docker.network=traefik"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web-secure.address=:443"
-      - "--entrypoints.synapse.address=:8448"
+      - "--entrypoints.federation.address=:8448"
       - "--certificatesresolvers.default.acme.tlschallenge=true"
       - "--certificatesresolvers.default.acme.email=YOUR EMAIL"
       - "--certificatesresolvers.default.acme.storage=/letsencrypt/acme.json"
