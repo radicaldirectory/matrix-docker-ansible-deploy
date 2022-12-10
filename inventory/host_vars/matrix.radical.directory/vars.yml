@@ -47,12 +47,44 @@ matrix_registration_enabled: true
 # Generate a strong secret using: `pwgen -s 64 1`.
 matrix_registration_admin_secret: '{{ vault_matrix_registration_admin_secret }}'
 
-matrix_bot_matrix_registration_bot_enabled: true
-# Token obtained via logging into the bot account (see above)
-matrix_bot_matrix_registration_bot_bot_access_token: '{{ vault_matrix_bot_matrix_registration_bot_bot_access_token }}' 
+# Prometheus and Grafana
+matrix_prometheus_enabled: true
 
-# Enables registration
+# You can remove this, if unnecessary.
+matrix_prometheus_node_exporter_enabled: true
+
+# You can remove this, if unnecessary.
+matrix_prometheus_postgres_exporter_enabled: true
+
+matrix_grafana_enabled: true
+
+matrix_grafana_anonymous_access: false
+
+# This has no relation to your Matrix user id. It can be any username you'd like.
+# Changing the username subsequently won't work.
+matrix_grafana_default_admin_user: "rd-stats-admin"
+
+# Changing the password subsequently won't work.
+matrix_grafana_default_admin_password: '{{ vault_matrix_grafana_default_admin_password }}' 
+
 matrix_synapse_enable_registration: true
 
-# Restrict registration to users with a token
-matrix_synapse_registration_requires_token: true
+matrix_synapse_log_level: "WARNING"
+matrix_synapse_storage_sql_log_level: "WARNING"
+matrix_synapse_root_log_level: "WARNING"
+
+
+matrix_postgres_process_extra_arguments: [
+  "-c max_connections=100",
+  "-c shared_buffers=512MB",
+  "-c effective_cache_size=1536MB",
+  "-c maintenance_work_mem=128MB",
+  "-c checkpoint_completion_target=0.9",
+  "-c wal_buffers=16MB",
+  "-c default_statistics_target=100",
+  "-c random_page_cost=1.1",
+  "-c effective_io_concurrency=200",
+  "-c work_mem=2621kB",
+  "-c min_wal_size=1GB",
+  "-c max_wal_size=4GB",
+]
